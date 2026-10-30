@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.local
+*.log
+dist/
+.expo/
+.next/
+uploads/*
+!uploads/.gitkeep
+expo-env.d.ts
