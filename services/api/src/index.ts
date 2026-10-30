@@ -19,7 +19,10 @@ import { reviewRouter } from "./routes/reviews";
 import { expireUnpaidOrders } from "./lib/expire";
 
 const app = express();
-const allowed = config.CORS_ORIGINS.split(",").map((s) => s.trim());
+const allowed = config.CORS_ORIGINS.split(",").map((s) => s.trim().replace(/\/+$/, "")); // tolerate a trailing slash
+// Hosting platforms (Render, Railway, Fly...) put a proxy in front of the app. Without this, every user appears to
+// come from the proxy's IP and they all share ONE rate-limit bucket.
+if (config.NODE_ENV === "production") app.set("trust proxy", 1);
 app.use(helmet());
 app.use(cors({ origin: allowed })); // mobile apps send no Origin header and are unaffected by CORS
 // Webhook must see the RAW body (for signature check), so it is registered BEFORE express.json().
@@ -30,6 +33,16 @@ app.use(morgan(config.NODE_ENV === "production" ? "combined" : "dev")); // logs 
 app.get("/api/health", async (_req, res) => {
   try { await prisma.$queryRaw`SELECT 1`; res.json({ status: "ok", database: "up" }); }
   catch { res.status(503).json({ status: "degraded", database: "down" }); }
+});
+
+// Serverless replacement for the timer below: at most once per 5 minutes per running instance.
+let lastExpire = 0;
+app.use(["/api/orders", "/api/cart", "/api/products"], async (_req: Request, _res: Response, next: NextFunction) => {
+  if (process.env.VERCEL && Date.now() - lastExpire > 5 * 60_000) {
+    lastExpire = Date.now();
+    await expireUnpaidOrders().catch((e) => console.error("expire job error", e));
+  }
+  next();
 });
 
 app.use("/api/auth", rateLimit({ windowMs: 15 * 60_000, limit: config.NODE_ENV === "production" ? 30 : 300, standardHeaders: true, legacyHeaders: false }), authRouter);
@@ -53,4 +66,6 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 app.listen(config.PORT, () => console.log(`Locora API listening on http://localhost:${config.PORT}`));
-setInterval(() => expireUnpaidOrders().catch((e) => console.error("expire job error", e)), 5 * 60_000);
+// Locally/on a normal server a timer clears abandoned online orders. Serverless (Vercel) has no always-on process,
+// so there the same job runs opportunistically from the middleware above instead.
+if (!process.env.VERCEL) setInterval(() => expireUnpaidOrders().catch((e) => console.error("expire job error", e)), 5 * 60_000);
