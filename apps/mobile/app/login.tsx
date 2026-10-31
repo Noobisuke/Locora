@@ -2,6 +2,8 @@ import { useState } from "react";
 import { ScrollView, Text, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth";
+import { ApiError } from "@/lib/api";
+import { setHint } from "@/lib/verifyHint";
 import { C } from "@/lib/theme";
 import { Btn } from "@/components/Img";
 
@@ -12,7 +14,15 @@ export default function Screen() {
   async function submit() {
     setBusy(true); setError("");
     try { await login(email.trim(), password); router.replace("/"); }
-    catch (e) { setError((e as Error).message); setBusy(false); }
+    catch (e) {
+      if (e instanceof ApiError && e.data.code === "EMAIL_NOT_VERIFIED") { // server already emailed a fresh code
+        const addr = e.data.email ?? email.trim();
+        setHint({ email: addr, devCode: e.data.devCode, resendIn: e.data.resendIn });
+        router.replace({ pathname: "/verify", params: { email: addr } });
+        return;
+      }
+      setError((e as Error).message); setBusy(false);
+    }
   }
   const inp = { backgroundColor: "#fff", borderWidth: 1, borderColor: C.line, borderRadius: 12, paddingHorizontal: 14, height: 48 } as const;
   return (

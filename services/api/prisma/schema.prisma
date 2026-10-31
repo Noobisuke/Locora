@@ -61,6 +61,7 @@ model User {
   role         Role     @default(CUSTOMER)
   isActive     Boolean  @default(true)
   deliveryApproved Boolean @default(false)
+  emailVerifiedAt DateTime? // null = signed up but has not proved they own the address
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   stores       Store[]
@@ -304,4 +305,15 @@ model Review {
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   @@unique([userId, productId])
   @@index([productId])
+}
+
+// One-time 6-digit codes that prove a person owns an email address. Only a keyed hash of the code is stored.
+model EmailOtp {
+  id        String   @id @default(cuid())
+  email     String
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([email])
 }

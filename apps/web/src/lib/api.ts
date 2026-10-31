@@ -2,7 +2,7 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000
 export const TOKEN_KEY = "locora_token";
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) { super(message); }
+  constructor(public status: number, message: string, public data: Record<string, any> = {}) { super(message); }
 }
 
 export async function api<T>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
@@ -20,7 +20,7 @@ export async function api<T>(path: string, opts: { method?: string; body?: unkno
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && token && typeof window !== "undefined") window.dispatchEvent(new Event("locora:unauthorized"));
-  if (!res.ok) throw new ApiError(res.status, apiMessage(data));
+  if (!res.ok) throw new ApiError(res.status, apiMessage(data), data);
   return data as T;
 }
 

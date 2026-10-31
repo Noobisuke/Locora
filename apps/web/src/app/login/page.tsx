@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { ApiError } from "@/lib/api";
+import { saveHint } from "@/lib/verifyHint";
 
 function Form() {
   const { login } = useAuth();
@@ -15,7 +17,14 @@ function Form() {
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError("");
     try { await login(email, password); router.push(safeNext); }
-    catch (err) { setError((err as Error).message); setBusy(false); }
+    catch (err) {
+      if (err instanceof ApiError && err.data.code === "EMAIL_NOT_VERIFIED") {
+        saveHint({ email: err.data.email ?? email, devCode: err.data.devCode, resendIn: err.data.resendIn });
+        router.push(`/verify?email=${encodeURIComponent(err.data.email ?? email)}${safeNext !== "/" ? `&next=${encodeURIComponent(safeNext)}` : ""}`);
+        return;
+      }
+      setError((err as Error).message); setBusy(false);
+    }
   }
   return (
     <form className="panel stack narrow" onSubmit={submit}>

@@ -18,11 +18,14 @@ function check(name, cond, detail = "") {
   if (cond) { pass++; console.log("  PASS", name); } else { fail++; console.log("  FAIL", name, detail ? `-> ${detail}` : ""); }
 }
 const section = (t) => console.log(`\n== ${t}`);
-async function mkUser(prefix) {
+// Signup now needs the emailed code. Without a mail provider (dev mode) the API returns it as `devCode`.
+async function mkUser(prefix, extra = {}) {
   const email = `${prefix}-${run}-${Math.random().toString(36).slice(2, 6)}@smoke.test`;
-  const r = await call("POST", "/auth/register", { body: { name: `Smoke ${prefix}`, email, password: PW } });
-  if (r.status !== 201) throw new Error(`register failed (${r.status}): ${JSON.stringify(r.data)}`);
-  return { token: r.data.token, id: r.data.user.id, email };
+  const r = await call("POST", "/auth/register", { body: { name: `Smoke ${prefix}`, email, password: PW, ...extra } });
+  if (r.status !== 201 || !r.data.devCode) throw new Error(`register failed (${r.status}): ${JSON.stringify(r.data)} -- smoke needs a dev API (NODE_ENV not production, BREVO_API_KEY empty)`);
+  const v = await call("POST", "/auth/verify-email", { body: { email, code: r.data.devCode } });
+  if (v.status !== 200) throw new Error(`verify failed (${v.status}): ${JSON.stringify(v.data)}`);
+  return { token: v.data.token, id: v.data.user.id, email, user: v.data.user };
 }
 const ADDR = { label: "Home", line1: "12 Test Street", city: "Ludhiana", state: "Punjab", pincode: "141001", phone: "9876543210" };
 
@@ -30,8 +33,15 @@ try {
   section("Health & auth");
   const h = await call("GET", "/health");
   check("health endpoint reports database up", h.status === 200 && h.data.database === "up", JSON.stringify(h.data));
-  const esc = await call("POST", "/auth/register", { body: { name: "Evil", email: `evil-${run}@smoke.test`, password: PW, role: "ADMIN" } });
-  check("signup cannot grant ADMIN role", esc.status === 201 && esc.data.user.role === "CUSTOMER", JSON.stringify(esc.data));
+  const esc = await mkUser("evil", { role: "ADMIN" });
+  check("signup cannot grant ADMIN role", esc.user.role === "CUSTOMER", JSON.stringify(esc.user));
+  const unv = `unv-${run}@smoke.test`;
+  const reg = await call("POST", "/auth/register", { body: { name: "Unverified", email: unv, password: PW } });
+  check("signup returns verificationRequired and NO token", reg.status === 201 && reg.data.verificationRequired === true && !reg.data.token, JSON.stringify(reg.data));
+  const lg = await call("POST", "/auth/login", { body: { email: unv, password: PW } });
+  check("unverified account cannot log in", lg.status === 403 && lg.data.code === "EMAIL_NOT_VERIFIED", JSON.stringify(lg.data));
+  check("wrong verification code rejected", (await call("POST", "/auth/verify-email", { body: { email: unv, code: reg.data.devCode === "000000" ? "111111" : "000000" } })).status === 400);
+  check("correct code verifies and returns a token", !!(await call("POST", "/auth/verify-email", { body: { email: unv, code: reg.data.devCode } })).data.token);
   const c = await mkUser("cust");
   check("wrong password rejected", (await call("POST", "/auth/login", { body: { email: c.email, password: "nope-nope" } })).status === 401);
   const me = await call("GET", "/auth/me", { token: c.token });

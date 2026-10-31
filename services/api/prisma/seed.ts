@@ -4,11 +4,79 @@ import "dotenv/config";
 
 const prisma = new PrismaClient();
 
+// Product pictures are generated SVGs (gradient + emoji), so the demo needs no image hosting or internet access.
+const PALETTE: Record<string, [string, string]> = {
+  grocery: ["#dcfce7", "#4ade80"], fashion: ["#ffe4e6", "#fb7185"], electronics: ["#dbeafe", "#60a5fa"],
+  "home-kitchen": ["#ffedd5", "#fb923c"], beauty: ["#fae8ff", "#d946ef"], "books-stationery": ["#e0e7ff", "#818cf8"],
+};
+function artwork(emoji: string, cat: string): string {
+  const [from, to] = PALETTE[cat] ?? ["#f1f5f9", "#94a3b8"];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient></defs><rect width="600" height="600" fill="url(#g)"/><circle cx="500" cy="100" r="150" fill="#fff" fill-opacity=".25"/><circle cx="80" cy="540" r="190" fill="#fff" fill-opacity=".18"/><ellipse cx="300" cy="490" rx="150" ry="22" fill="#000" fill-opacity=".10"/><text x="300" y="360" font-size="260" text-anchor="middle" font-family="Segoe UI Emoji,Apple Color Emoji,Noto Color Emoji,sans-serif">${emoji}</text></svg>`;
+  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+type Item = { cat: string; name: string; emoji: string; price: number; was?: number; stock: number; desc: string; feat?: boolean; alias?: string };
+const CATALOG: Item[] = [
+  // Grocery
+  { cat: "grocery", name: "Basmati Rice 1kg", alias: "Sample Basmati Rice 1kg", emoji: "🍚", price: 120, was: 140, stock: 50, feat: true, desc: "Long-grain aged basmati. Fluffy, aromatic rice for everyday meals and biryani." },
+  { cat: "grocery", name: "Assam Tea 250g", alias: "Sample Tea 250g", emoji: "🍵", price: 90, stock: 30, desc: "Strong, malty CTC tea leaves. Makes a proper cup of masala chai." },
+  { cat: "grocery", name: "Wild Forest Honey 500g", alias: "Sample Honey 500g", emoji: "🍯", price: 250, stock: 0, desc: "Raw, unprocessed honey collected from forest hives." },
+  { cat: "grocery", name: "Fresh Cow Milk 1L", emoji: "🥛", price: 62, stock: 40, desc: "Pasteurised full-cream milk, delivered fresh from the local dairy." },
+  { cat: "grocery", name: "Whole Wheat Atta 5kg", emoji: "🌾", price: 245, was: 270, stock: 35, desc: "Stone-ground whole wheat flour for soft rotis and parathas." },
+  { cat: "grocery", name: "Mixed Dry Fruits 500g", emoji: "🥜", price: 520, was: 600, stock: 20, feat: true, desc: "Almonds, cashews, raisins and pistachios in one festive-ready pack." },
+  { cat: "grocery", name: "Farm Fresh Eggs (12)", emoji: "🥚", price: 96, stock: 3, desc: "A dozen farm eggs, collected daily." },
+  { cat: "grocery", name: "Desi Ghee 500ml", emoji: "🧈", price: 360, was: 399, stock: 25, desc: "Traditional slow-cooked ghee with a rich aroma." },
+  // Fashion
+  { cat: "fashion", name: "Men's Cotton T-Shirt", emoji: "👕", price: 499, was: 799, stock: 60, feat: true, desc: "Soft 100% cotton crew-neck tee. Breathable and easy to wash." },
+  { cat: "fashion", name: "Women's Printed Kurti", emoji: "👗", price: 899, was: 1299, stock: 25, desc: "Lightweight printed kurti, a comfortable fit for daily wear." },
+  { cat: "fashion", name: "Slim Fit Blue Jeans", emoji: "👖", price: 1199, was: 1799, stock: 40, desc: "Stretch denim in a modern slim fit with a classic wash." },
+  { cat: "fashion", name: "Running Sneakers", emoji: "👟", price: 1799, was: 2499, stock: 18, feat: true, desc: "Cushioned, lightweight sneakers for running and the gym." },
+  { cat: "fashion", name: "Classic Leather Handbag", emoji: "👜", price: 1499, was: 1999, stock: 14, desc: "Roomy faux-leather handbag with a zip pocket and sturdy straps." },
+  { cat: "fashion", name: "Cotton Baseball Cap", emoji: "🧢", price: 299, stock: 70, desc: "Adjustable cotton cap with a curved brim." },
+  { cat: "fashion", name: "Aviator Sunglasses", emoji: "🕶️", price: 699, was: 999, stock: 30, desc: "UV-protected lenses in a lightweight metal frame." },
+  { cat: "fashion", name: "Woolen Winter Scarf", emoji: "🧣", price: 399, stock: 5, desc: "Warm, soft woolen scarf for the Punjab winter." },
+  // Electronics
+  { cat: "electronics", name: "Wireless Earbuds", emoji: "🎧", price: 1499, was: 2999, stock: 45, feat: true, desc: "Bluetooth 5.3 earbuds with a charging case and up to 24 hours of playtime." },
+  { cat: "electronics", name: "20W Fast Charger", emoji: "🔌", price: 799, was: 1199, stock: 80, desc: "Compact fast charger with USB-C output. Works with most phones." },
+  { cat: "electronics", name: "Smart Watch", emoji: "⌚", price: 2499, was: 3999, stock: 22, feat: true, desc: "AMOLED display, heart-rate and sleep tracking, 7-day battery." },
+  { cat: "electronics", name: "Bluetooth Speaker", emoji: "🔊", price: 1299, was: 1999, stock: 30, desc: "Portable speaker with deep bass and a splash-proof body." },
+  { cat: "electronics", name: "Power Bank 20000mAh", emoji: "🔋", price: 1699, was: 2199, stock: 28, desc: "High-capacity power bank with dual USB output." },
+  { cat: "electronics", name: "Wireless Mouse", emoji: "🖱️", price: 499, was: 799, stock: 70, desc: "Silent-click wireless mouse with a USB nano receiver." },
+  { cat: "electronics", name: "LED Desk Lamp", emoji: "💡", price: 899, was: 1299, stock: 4, desc: "Dimmable LED lamp with three colour temperatures." },
+  { cat: "electronics", name: "Mechanical Keyboard", emoji: "⌨️", price: 2199, was: 2999, stock: 15, desc: "Compact mechanical keyboard with tactile switches." },
+  // Home & Kitchen
+  { cat: "home-kitchen", name: "Non-stick Frying Pan", emoji: "🍳", price: 799, was: 1199, stock: 35, feat: true, desc: "26cm non-stick pan with a cool-touch handle, induction friendly." },
+  { cat: "home-kitchen", name: "Insulated Steel Bottle 1L", emoji: "🥤", price: 599, was: 899, stock: 50, desc: "Keeps drinks cold for 24 hours and hot for 12." },
+  { cat: "home-kitchen", name: "Cotton Bedsheet Set", emoji: "🛏️", price: 999, was: 1599, stock: 20, desc: "Double bedsheet with two pillow covers, soft 180 TC cotton." },
+  { cat: "home-kitchen", name: "Ceramic Dinner Set", emoji: "🍽️", price: 1899, was: 2599, stock: 12, desc: "18-piece dinner set, microwave and dishwasher safe." },
+  { cat: "home-kitchen", name: "Electric Kettle 1.5L", emoji: "☕", price: 899, was: 1299, stock: 33, feat: true, desc: "Stainless steel kettle with auto shut-off and boil-dry protection." },
+  { cat: "home-kitchen", name: "Indoor Money Plant", emoji: "🪴", price: 249, stock: 60, desc: "Easy-care money plant in a ceramic pot." },
+  { cat: "home-kitchen", name: "Scented Candle Set", emoji: "🕯️", price: 349, was: 499, stock: 45, desc: "Set of 3 soy-wax candles in lavender, vanilla and jasmine." },
+  { cat: "home-kitchen", name: "Wooden Wall Clock", emoji: "🕰️", price: 699, stock: 8, desc: "Silent-sweep wall clock with a solid wood frame." },
+  // Beauty
+  { cat: "beauty", name: "Vitamin C Face Serum", emoji: "🧴", price: 549, was: 799, stock: 40, feat: true, desc: "Brightening serum with 10% vitamin C for an even skin tone." },
+  { cat: "beauty", name: "Aloe Vera Gel 200g", emoji: "🌿", price: 199, stock: 70, desc: "Soothing multi-purpose gel for skin and hair." },
+  { cat: "beauty", name: "Matte Lipstick", emoji: "💄", price: 349, was: 499, stock: 55, desc: "Long-wear matte lipstick in a rich, smudge-resistant formula." },
+  { cat: "beauty", name: "Nourishing Hair Oil 200ml", emoji: "💇", price: 229, stock: 48, desc: "Light herbal hair oil that strengthens and adds shine." },
+  { cat: "beauty", name: "Sunscreen SPF 50", emoji: "☀️", price: 399, was: 549, stock: 38, desc: "Lightweight, non-greasy broad-spectrum sun protection." },
+  { cat: "beauty", name: "Rose Water Toner", emoji: "🌹", price: 249, stock: 30, desc: "Refreshing alcohol-free toner made with natural rose water." },
+  { cat: "beauty", name: "Beard Grooming Kit", emoji: "🧔", price: 699, was: 999, stock: 18, desc: "Beard oil, balm, comb and scissors in a gift box." },
+  { cat: "beauty", name: "Floral Perfume 50ml", emoji: "🌸", price: 1199, was: 1799, stock: 22, feat: true, desc: "Long-lasting floral fragrance with a soft musk base." },
+  // Books & Stationery
+  { cat: "books-stationery", name: "Ruled Notebooks (Pack of 5)", emoji: "📓", price: 250, stock: 80, desc: "A5 ruled notebooks with 160 pages each." },
+  { cat: "books-stationery", name: "Gel Pen Set (10)", emoji: "🖊️", price: 149, stock: 100, desc: "Smooth-writing gel pens in assorted colours." },
+  { cat: "books-stationery", name: "Self-Help Bestseller Paperback", emoji: "📘", price: 399, was: 599, stock: 26, desc: "A popular paperback on building better habits." },
+  { cat: "books-stationery", name: "Scientific Calculator", emoji: "🧮", price: 899, was: 1199, stock: 25, feat: true, desc: "240-function calculator approved for school and college exams." },
+  { cat: "books-stationery", name: "A4 Sketch Pad", emoji: "🎨", price: 180, stock: 45, desc: "40 sheets of thick, acid-free drawing paper." },
+  { cat: "books-stationery", name: "Desk Organiser", emoji: "🗂️", price: 449, was: 699, stock: 20, desc: "Multi-compartment organiser for pens, notes and a phone." },
+  { cat: "books-stationery", name: "Colour Pencil Set (48)", emoji: "✏️", price: 329, was: 449, stock: 60, desc: "Vibrant, smooth colour pencils in a tin case." },
+  { cat: "books-stationery", name: "School Backpack", emoji: "🎒", price: 899, was: 1399, stock: 28, desc: "Water-resistant backpack with a padded laptop sleeve." },
+];
+
 async function main() {
   if (process.env.NODE_ENV === "production") throw new Error("Refusing to seed in production");
 
-  const cats = ["Grocery", "Fashion", "Electronics", "Home & Kitchen", "Beauty", "Books & Stationery"];
-  for (const name of cats) {
+  const catNames = ["Grocery", "Fashion", "Electronics", "Home & Kitchen", "Beauty", "Books & Stationery"];
+  for (const name of catNames) {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
     await prisma.category.upsert({ where: { slug }, update: {}, create: { name, slug } });
   }
@@ -17,323 +85,40 @@ async function main() {
   const email = process.env.SEED_ADMIN_EMAIL, pw = process.env.SEED_ADMIN_PASSWORD;
   if (email && pw) {
     await prisma.user.upsert({
-      where: { email }, update: {},
-      create: { name: "Locora Admin", email, passwordHash: await bcrypt.hash(pw, 12), role: "ADMIN" },
+      where: { email }, update: { emailVerifiedAt: new Date() },
+      create: { name: "Locora Admin", email, passwordHash: await bcrypt.hash(pw, 12), role: "ADMIN", emailVerifiedAt: new Date() },
     });
   }
 
   // Sample seller + store + products. Flagged isSample=true: NOT real local listings.
   const seller = await prisma.user.upsert({
-    where: { email: "sample-seller@locora.local" }, update: {},
-    create: { name: "Sample Seller", email: "sample-seller@locora.local", role: "SELLER", passwordHash: await bcrypt.hash("SampleSeller123!", 12) },
+    where: { email: "sample-seller@locora.local" }, update: { emailVerifiedAt: new Date() },
+    create: { name: "Sample Seller", email: "sample-seller@locora.local", role: "SELLER", passwordHash: await bcrypt.hash("SampleSeller123!", 12), emailVerifiedAt: new Date() },
   });
-  // Stores across categories
-  const storesData = [
-    { name: "Green Grocers & Organic Mart", phone: "9876500001", address: "Shop 12, Main Market, Model Town", area: "Model Town, Ludhiana", desc: "Fresh organic produce, pantry essentials and daily groceries." },
-    { name: "Urban Vogue Apparel", phone: "9876500002", address: "SCO 45, Sarabha Nagar", area: "Sarabha Nagar, Ludhiana", desc: "Trendy casual wear, ethnic fashion, and daily wardrobe staples." },
-    { name: "Apex Tech & Gadgets", phone: "9876500003", address: "Shop 8, Feroze Gandhi Market", area: "Ferozepur Road, Ludhiana", desc: "Authentic electronics, audio gear, smart accessories, and cables." },
-    { name: "Nest & Haven Homeware", phone: "9876500004", address: "Plot 22, Pakhowal Road", area: "Pakhowal Road, Ludhiana", desc: "Kitchen essentials, cookware, storage and home décor." },
-    { name: "Glow & Glam Botanicals", phone: "9876500005", address: "Booth 14, Mall Road", area: "Civil Lines, Ludhiana", desc: "Clean beauty, skincare, haircare, and personal hygiene products." },
-    { name: "The Quill & Paper Store", phone: "9876500006", address: "Shop 3, College Road", area: "Fountain Chowk, Ludhiana", desc: "Art supplies, notebooks, pens, and desk organizers." },
-  ];
-
   let store = await prisma.store.findFirst({ where: { ownerId: seller.id } });
-  if (!store) {
-    store = await prisma.store.create({
-      data: {
-        ownerId: seller.id,
-        name: storesData[0].name,
-        contactPhone: storesData[0].phone,
-        address: storesData[0].address,
-        serviceArea: storesData[0].area,
-        description: storesData[0].desc,
-      },
-    });
+  if (!store) store = await prisma.store.create({ data: {
+    ownerId: seller.id, name: "Locora Demo Store", contactPhone: "0000000000",
+    address: "Placeholder address", serviceArea: "Ludhiana", description: "Demo data for development only.",
+  }});
+  else if (store.name === "Sample Store (placeholder)") store = await prisma.store.update({ where: { id: store.id }, data: { name: "Locora Demo Store" } });
+  // ---- Demo catalogue: 8 products per category. Safe to re-run: existing products are updated, never duplicated. ----
+  const cats = await prisma.category.findMany();
+  const catId = Object.fromEntries(cats.map((c) => [c.slug, c.id]));
+  for (const p of CATALOG) {
+    const data = {
+      categoryId: catId[p.cat], description: p.desc, pricePaise: p.price * 100,
+      originalPricePaise: p.was ? p.was * 100 : null, isSample: true, isFeatured: !!p.feat, isActive: true,
+    };
+    // `alias` = the name used by the older 3-product seed, so those rows are renamed instead of duplicated.
+    let existing = await prisma.product.findFirst({ where: { storeId: store.id, name: p.name } });
+    if (!existing && p.alias) existing = await prisma.product.findFirst({ where: { storeId: store.id, name: p.alias } });
+    const product = existing
+      ? await prisma.product.update({ where: { id: existing.id }, data: { ...data, name: p.name } }) // stock is left untouched
+      : await prisma.product.create({ data: { ...data, storeId: store.id, name: p.name, stock: p.stock } });
+    const hasImage = await prisma.productImage.count({ where: { productId: product.id } });
+    if (!hasImage) await prisma.productImage.create({ data: { productId: product.id, url: artwork(p.emoji, p.cat), isPrimary: true, sortOrder: 0 } });
   }
-
-  // Pre-load all categories
-  const allCats = await prisma.category.findMany();
-  const catMap = new Map(allCats.map((c) => [c.slug, c.id]));
-
-  // Delete existing sample products so we can re-seed cleanly with rich assortment
-  await prisma.product.deleteMany({ where: { isSample: true } });
-
-  const sampleProducts: {
-    catSlug: string;
-    name: string;
-    description: string;
-    pricePaise: number;
-    originalPricePaise?: number;
-    stock: number;
-    isFeatured?: boolean;
-    image: string;
-  }[] = [
-    // --- Grocery ---
-    {
-      catSlug: "grocery",
-      name: "Organic Royal Basmati Rice (5kg)",
-      description: "Aged long-grain aromatic basmati rice, perfect for biryanis and pulao.",
-      pricePaise: 54900,
-      originalPricePaise: 65000,
-      stock: 40,
-      isFeatured: true,
-      image: "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "grocery",
-      name: "Cold-Pressed Virgin Mustard Oil (1L)",
-      description: "Traditional kachi ghani pure mustard oil extracted at low temperatures.",
-      pricePaise: 18500,
-      originalPricePaise: 21000,
-      stock: 65,
-      isFeatured: true,
-      image: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "grocery",
-      name: "Assam CTC Premium Black Tea (500g)",
-      description: "Strong malty aroma, full-bodied kadak chai blend from upper Assam gardens.",
-      pricePaise: 28000,
-      originalPricePaise: 32000,
-      stock: 50,
-      image: "https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "grocery",
-      name: "Raw Forest Honey with Comb (400g)",
-      description: "Unfiltered, unpasteurized natural multifloral wild forest honey.",
-      pricePaise: 39900,
-      originalPricePaise: 45000,
-      stock: 25,
-      image: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "grocery",
-      name: "California Almonds Jumbo (500g)",
-      description: "Crispy, crunchy premium grade almonds packed with Vitamin E and protein.",
-      pricePaise: 49900,
-      originalPricePaise: 60000,
-      stock: 35,
-      image: "https://images.unsplash.com/photo-1508061257971-f925055b85ee?w=600&auto=format&fit=crop&q=80",
-    },
-
-    // --- Fashion ---
-    {
-      catSlug: "fashion",
-      name: "Classic Heavyweight Cotton Crewneck Tee",
-      description: "100% combed cotton, 220 GSM breathable fabric with pre-shrunk finish.",
-      pricePaise: 79900,
-      originalPricePaise: 129900,
-      stock: 55,
-      isFeatured: true,
-      image: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "fashion",
-      name: "Handcrafted Pure Linen Casual Shirt",
-      description: "Relaxed fit breathable French linen shirt, styled for summer comfort.",
-      pricePaise: 189900,
-      originalPricePaise: 249900,
-      stock: 20,
-      image: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "fashion",
-      name: "Slim Fit Selvedge Stretch Denim",
-      description: "13.5 oz Japanese selvedge denim woven with 2% elastane for daily ease.",
-      pricePaise: 249900,
-      originalPricePaise: 349900,
-      stock: 30,
-      image: "https://images.unsplash.com/photo-1542272604-780c96856592?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "fashion",
-      name: "Handwoven Silk Dupatta with Zari Work",
-      description: "Exquisite traditional Chanderi silk with delicate golden border craftsmanship.",
-      pricePaise: 145000,
-      originalPricePaise: 180000,
-      stock: 15,
-      image: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=600&auto=format&fit=crop&q=80",
-    },
-
-    // --- Electronics ---
-    {
-      catSlug: "electronics",
-      name: "Active Noise-Cancelling Wireless Headphones",
-      description: "Hybrid ANC, 40-hour battery life, 40mm dynamic drivers, ultra-soft earcups.",
-      pricePaise: 399900,
-      originalPricePaise: 599900,
-      stock: 28,
-      isFeatured: true,
-      image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "electronics",
-      name: "Ultra-Fast 65W GaN Dual USB-C Charger",
-      description: "Compact fast wall charger compatible with laptops, phones, and tablets.",
-      pricePaise: 149900,
-      originalPricePaise: 199900,
-      stock: 45,
-      image: "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "electronics",
-      name: "Mechanical Gaming Keyboard RGB (Brown Switch)",
-      description: "Tactile silent switches, hot-swappable PCB, braided type-C detachable cable.",
-      pricePaise: 329900,
-      originalPricePaise: 449900,
-      stock: 18,
-      image: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "electronics",
-      name: "Rugged Waterproof Bluetooth Speaker (15W)",
-      description: "IPX7 waterproof, deep punchy bass, 12-hour continuous party playtime.",
-      pricePaise: 219900,
-      originalPricePaise: 299900,
-      stock: 32,
-      image: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=600&auto=format&fit=crop&q=80",
-    },
-
-    // --- Home & Kitchen ---
-    {
-      catSlug: "home-kitchen",
-      name: "Pre-Seasoned Cast Iron Skillet (10.5 inch)",
-      description: "Heavy-duty cast iron pan with silicone heat guard, unbeatable heat retention.",
-      pricePaise: 169900,
-      originalPricePaise: 220000,
-      stock: 30,
-      isFeatured: true,
-      image: "https://images.unsplash.com/photo-1584990347449-399c565c8ea0?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "home-kitchen",
-      name: "Borosilicate Glass Airtight Storage Jars (Set of 4)",
-      description: "Lead-free glass canisters with natural acacia wood lids and silicone sealing.",
-      pricePaise: 129900,
-      originalPricePaise: 169900,
-      stock: 40,
-      image: "https://images.unsplash.com/photo-1584589167171-541ce45f1eea?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "home-kitchen",
-      name: "Stainless Steel Double-Wall French Press (800ml)",
-      description: "Insulated cafetiere for rich sediment-free coffee and loose leaf teas.",
-      pricePaise: 189900,
-      originalPricePaise: 249900,
-      stock: 22,
-      image: "https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "home-kitchen",
-      name: "Pure Egyptian Cotton Bath Towel Set (2 pcs)",
-      description: "600 GSM plush, ultra-absorbent Turkish weave combed luxury bath towels.",
-      pricePaise: 119900,
-      originalPricePaise: 159900,
-      stock: 35,
-      image: "https://images.unsplash.com/photo-1616627547584-bf28cee262db?w=600&auto=format&fit=crop&q=80",
-    },
-
-    // --- Beauty ---
-    {
-      catSlug: "beauty",
-      name: "Vitamin C + Ferulic Glow Serum (30ml)",
-      description: "15% active L-Ascorbic acid to brighten dull skin and fade hyperpigmentation.",
-      pricePaise: 69900,
-      originalPricePaise: 89900,
-      stock: 50,
-      isFeatured: true,
-      image: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "beauty",
-      name: "Cold-Pressed Moroccan Argan Hair Oil (100ml)",
-      description: "Repairs dry split ends, restores shine and hydrates damaged locks naturally.",
-      pricePaise: 74900,
-      originalPricePaise: 95000,
-      stock: 45,
-      image: "https://images.unsplash.com/photo-1608248597359-58b387f3b89b?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "beauty",
-      name: "Ultra-Lightweight SPF 50+ Invisible Sunscreen Gel",
-      description: "Zero white cast, non-sticky matte finish infused with Hyaluronic acid.",
-      pricePaise: 54900,
-      originalPricePaise: 69900,
-      stock: 60,
-      image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "beauty",
-      name: "Rosehip & Shea Butter Hydrating Lip Balm",
-      description: "Deep nourishing lip repair butter with natural beeswax and rose extracts.",
-      pricePaise: 29900,
-      originalPricePaise: 39900,
-      stock: 80,
-      image: "https://images.unsplash.com/photo-1599305090598-fe179d501227?w=600&auto=format&fit=crop&q=80",
-    },
-
-    // --- Books & Stationery ---
-    {
-      catSlug: "books-stationery",
-      name: "Hardcover Dotted Bullet Journal (160 GSM)",
-      description: "Bleedproof bamboo paper, expandable back pocket, ribbon markers, elastic band.",
-      pricePaise: 64900,
-      originalPricePaise: 79900,
-      stock: 45,
-      isFeatured: true,
-      image: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "books-stationery",
-      name: "Precision Fine-Liner Fineliner Pens (Set of 8)",
-      description: "Waterproof archival pigment ink with tip sizes from 0.05mm to brush.",
-      pricePaise: 49900,
-      originalPricePaise: 64900,
-      stock: 50,
-      image: "https://images.unsplash.com/photo-1583485088034-697b5bc54ccd?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "books-stationery",
-      name: "Handcrafted Walnut Wood Desk Organizer",
-      description: "Minimalist desk tidy for pens, smartphone dock, clips, and business cards.",
-      pricePaise: 129900,
-      originalPricePaise: 169900,
-      stock: 25,
-      image: "https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?w=600&auto=format&fit=crop&q=80",
-    },
-    {
-      catSlug: "books-stationery",
-      name: "Atomic Habits - Clear, James (Paperback)",
-      description: "An easy & proven way to build good habits and break bad ones.",
-      pricePaise: 45000,
-      originalPricePaise: 59900,
-      stock: 35,
-      image: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=600&auto=format&fit=crop&q=80",
-    },
-  ];
-
-  for (const item of sampleProducts) {
-    const categoryId = catMap.get(item.catSlug);
-    if (!categoryId) continue;
-    const prod = await prisma.product.create({
-      data: {
-        storeId: store.id,
-        categoryId,
-        name: item.name,
-        description: item.description,
-        pricePaise: item.pricePaise,
-        originalPricePaise: item.originalPricePaise,
-        stock: item.stock,
-        isFeatured: item.isFeatured ?? false,
-        isSample: true,
-        images: {
-          create: [{ url: item.image, isPrimary: true, sortOrder: 0 }],
-        },
-      },
-    });
-  }
-
-  console.log(`Seed complete. Added ${sampleProducts.length} curated products across all categories.`);
+  console.log(`Catalogue ready: ${CATALOG.length} demo products.`);
+  console.log("Seed complete.");
 }
 main().catch((e) => { console.error(e); process.exit(1); }).finally(() => prisma.$disconnect());

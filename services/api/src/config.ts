@@ -11,6 +11,9 @@ const schema = z.object({
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+  BREVO_API_KEY: z.string().optional(),
+  MAIL_FROM_EMAIL: z.string().optional(), // must be a sender verified in Brevo
+  MAIL_FROM_NAME: z.string().default("Locora"),
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),

@@ -14,6 +14,7 @@ export default function Root() {
         <Stack.Screen name="addresses" options={{ title: "Saved addresses" }} />
         <Stack.Screen name="login" options={{ title: "Log in" }} />
         <Stack.Screen name="register" options={{ title: "Create account" }} />
+        <Stack.Screen name="verify" options={{ title: "Verify email" }} />
       </Stack>
     </AuthProvider>
   );

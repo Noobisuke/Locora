@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ScrollView, Text, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth";
+import { setHint } from "@/lib/verifyHint";
 import { C } from "@/lib/theme";
 import { Btn } from "@/components/Img";
 
@@ -11,7 +12,7 @@ export default function Screen() {
   const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   async function submit() {
     setBusy(true); setError("");
-    try { await register(name.trim(), email.trim(), password); router.replace("/"); }
+    try { const sent = await register(name.trim(), email.trim(), password); setHint(sent); router.replace({ pathname: "/verify", params: { email: sent.email } }); }
     catch (e) { setError((e as Error).message); setBusy(false); }
   }
   const inp = { backgroundColor: "#fff", borderWidth: 1, borderColor: C.line, borderRadius: 12, paddingHorizontal: 14, height: 48 } as const;

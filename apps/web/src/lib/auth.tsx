@@ -3,7 +3,13 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { api, TOKEN_KEY } from "./api";
 
 type User = { id: string; name: string; email: string; role: string };
-type Ctx = { user: User | null; ready: boolean; login: (e: string, p: string) => Promise<void>; register: (n: string, e: string, p: string) => Promise<void>; logout: () => void; refresh: () => Promise<void> };
+export type Pending = { email: string; resendIn?: number; devCode?: string };
+type Ctx = {
+  user: User | null; ready: boolean; login: (e: string, p: string) => Promise<void>;
+  register: (n: string, e: string, p: string) => Promise<Pending>; // signup does NOT log in: the emailed code must be entered first
+  verifyEmail: (e: string, code: string) => Promise<void>; resendCode: (e: string) => Promise<{ resendIn?: number; devCode?: string }>;
+  logout: () => void; refresh: () => Promise<void>;
+};
 const AuthCtx = createContext<Ctx>(null!);
 export const useAuth = () => useContext(AuthCtx);
 
@@ -26,7 +32,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthCtx.Provider value={{
       user, ready, refresh,
       login: async (email, password) => save(await api("/auth/login", { method: "POST", body: { email, password } })),
-      register: async (name, email, password) => save(await api("/auth/register", { method: "POST", body: { name, email, password } })),
+      register: (name, email, password) => api<Pending>("/auth/register", { method: "POST", body: { name, email, password } }),
+      verifyEmail: async (email, code) => save(await api("/auth/verify-email", { method: "POST", body: { email, code } })),
+      resendCode: (email) => api("/auth/resend-code", { method: "POST", body: { email } }),
       logout: () => { localStorage.removeItem(TOKEN_KEY); setUser(null); },
     }}>{children}</AuthCtx.Provider>
   );

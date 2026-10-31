@@ -15,6 +15,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     // Re-read the user so role changes / deactivation apply immediately.
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user || !user.isActive) return res.status(401).json({ error: "Invalid session" });
+    if (!user.emailVerifiedAt) return res.status(403).json({ error: "Please verify your email first", code: "EMAIL_NOT_VERIFIED" });
     req.user = { id: user.id, role: user.role };
     next();
   } catch {

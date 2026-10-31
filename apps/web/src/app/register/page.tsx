@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { saveHint } from "@/lib/verifyHint";
 
 function Form() {
   const { register } = useAuth();
@@ -14,7 +15,7 @@ function Form() {
   const other = `${"/login"}${safeNext !== "/" ? `?next=${encodeURIComponent(safeNext)}` : ""}`;
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError("");
-    try { await register(name, email, password); router.push(safeNext); }
+    try { const sent = await register(name, email, password); saveHint(sent); router.push(`/verify?email=${encodeURIComponent(sent.email)}${safeNext !== "/" ? `&next=${encodeURIComponent(safeNext)}` : ""}`); }
     catch (err) { setError((err as Error).message); setBusy(false); }
   }
   return (
